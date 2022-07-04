@@ -25,7 +25,7 @@ class ConanConfiguration(ConanFile):
 
     def package_info(self):
         try:
-            self.cpp_info.names["cmake_find_package"] = "glfw"
+            self.cpp_info.names["cmake_find_package"] = "glfw3"
             self.cpp_info.libs = tools.collect_libs(self)
         except Exception as e:
             error(format_exc())
