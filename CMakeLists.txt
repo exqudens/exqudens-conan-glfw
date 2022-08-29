@@ -12,14 +12,37 @@ message("project: '${PROJECT_NAME}-${PROJECT_VERSION}'")
 include("util.cmake")
 include("config.cmake")
 
-if(NOT EXISTS "${PROJECT_BINARY_DIR}/googletest-release-1.11.0.zip")
+cmake_path(CONVERT "$ENV{HOME}" TO_CMAKE_PATH_LIST HOME NORMALIZE)
+if(NOT EXISTS "${HOME}" OR NOT IS_DIRECTORY "${HOME}")
+    message(FATAL_ERROR "HOME: '${HOME}' not exists or not directory.")
+endif()
+set(CMAKE_HOME "${HOME}/.cmake")
+if(NOT EXISTS "${CMAKE_HOME}")
+    file(MAKE_DIRECTORY "${CMAKE_HOME}")
+endif()
+if(NOT EXISTS "${CMAKE_HOME}" OR NOT IS_DIRECTORY "${CMAKE_HOME}")
+    message(FATAL_ERROR "CMAKE_HOME: '${CMAKE_HOME}' not exists or not directory.")
+endif()
+set(CMAKE_DOWNLOADS "${CMAKE_HOME}/downloads")
+if(NOT EXISTS "${CMAKE_DOWNLOADS}")
+    file(MAKE_DIRECTORY "${CMAKE_DOWNLOADS}")
+endif()
+if(NOT EXISTS "${CMAKE_DOWNLOADS}" OR NOT IS_DIRECTORY "${CMAKE_DOWNLOADS}")
+    message(FATAL_ERROR "CMAKE_DOWNLOADS: '${CMAKE_DOWNLOADS}' is not directory.")
+endif()
+if(NOT EXISTS "${CMAKE_DOWNLOADS}/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
+    message("download ...")
     file(DOWNLOAD
-        #"https://github.com/glfw/glfw/releases/download/3.3.7/glfw-3.3.7.zip"
-        #"https://github.com/glfw/glfw/archive/refs/tags/3.3.7.zip"
-        "file:///C:/install/${PROJECT_NAME}-${PROJECT_VERSION}.zip"
-        "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}.zip"
+        "https://github.com/${PROJECT_NAME}/${PROJECT_NAME}/archive/refs/tags/${PROJECT_VERSION}.zip"
+        "${CMAKE_DOWNLOADS}/${PROJECT_NAME}-${PROJECT_VERSION}.zip"
         EXPECTED_MD5 "66bc4c624eb8c6b22d59026e304b500d"
     )
+    message("... done")
+endif()
+if(NOT EXISTS "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
+    message("copy from downloads ...")
+    file(COPY "${CMAKE_DOWNLOADS}/${PROJECT_NAME}-${PROJECT_VERSION}.zip" DESTINATION "${PROJECT_BINARY_DIR}")
+    message("... done")
 endif()
 if(NOT EXISTS "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}")
     file(ARCHIVE_EXTRACT INPUT "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
