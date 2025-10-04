@@ -1,8 +1,10 @@
-from os import path
-from traceback import format_exc
-from logging import error
-from conans import ConanFile, tools
+import json
+from pathlib import Path
 
+required_conan_version = ">=2.0"
+
+from conan import ConanFile
+from conan.tools.files import copy, collect_libs
 
 class ConanConfiguration(ConanFile):
     settings = "arch", "os", "compiler", "build_type"
@@ -11,26 +13,46 @@ class ConanConfiguration(ConanFile):
 
     def set_name(self):
         try:
-            self.name = tools.load(path.join(path.dirname(path.abspath(__file__)), "name-version.txt")).split(':')[0].strip()
+            self.name = json.loads(Path(__file__).parent.joinpath('name-version.json').read_bytes().decode())['name'].lower()
         except Exception as e:
-            error(format_exc())
+            self.output.error(e)
             raise e
 
     def set_version(self):
         try:
-            self.version = tools.load(path.join(path.dirname(path.abspath(__file__)), "name-version.txt")).split(':')[1].strip()
+            self.version = json.loads(Path(__file__).parent.joinpath('name-version.json').read_bytes().decode())['version'].lower()
         except Exception as e:
-            error(format_exc())
+            self.output.error(e)
+            raise e
+
+    def package(self):
+        try:
+            build_folder_path: Path = Path(self.build_folder)
+            package_folder_path: Path = Path(self.package_folder)
+
+            src: str = build_folder_path.joinpath("include").as_posix()
+            dst: str = package_folder_path.joinpath("include").as_posix()
+            copy(self, pattern="*.*", src=src, dst=dst)
+
+            src: str = build_folder_path.joinpath("cmake").as_posix()
+            dst: str = package_folder_path.joinpath("cmake").as_posix()
+            copy(self, pattern="*.*", src=src, dst=dst)
+
+            src: str = build_folder_path.joinpath("lib").as_posix()
+            dst: str = package_folder_path.joinpath("lib").as_posix()
+            copy(self, pattern="*.*", src=src, dst=dst)
+
+            src: str = build_folder_path.joinpath("bin").as_posix()
+            dst: str = package_folder_path.joinpath("bin").as_posix()
+            copy(self, pattern="*.*", src=src, dst=dst)
+        except Exception as e:
+            self.output.error(e)
             raise e
 
     def package_info(self):
         try:
-            self.cpp_info.names["cmake_find_package"] = "glfw3"
-            self.cpp_info.libs = tools.collect_libs(self)
+            self.cpp_info.set_property("cmake_file_name", 'glfw3')
+            self.cpp_info.libs = collect_libs(self)
         except Exception as e:
-            error(format_exc())
+            self.output.error(e)
             raise e
-
-
-if __name__ == "__main__":
-    pass

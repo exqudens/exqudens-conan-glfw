@@ -1,16 +1,131 @@
-cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/name-version.txt" INFO)
-string(REPLACE ":" ";" INFO_LIST "${INFO}")
-list(GET INFO_LIST 0 RAW_NAME)
-list(GET INFO_LIST 1 RAW_VERSION)
-string(STRIP "${RAW_NAME}" NAME)
-string(STRIP "${RAW_VERSION}" VERSION)
+cmake_minimum_required(VERSION "3.25" FATAL_ERROR)
+
+string(REPLACE "." ";" PRESET_NAME_ELEMENTS "${PRESET_NAME}")
+
+set(CMAKE_UTIL_FILE "" CACHE STRING "...")
+set(USE_CONAN "1" CACHE BOOL "...")
+
+if("${USE_CONAN}")
+    if("windows" IN_LIST "PRESET_NAME_ELEMENTS")
+        find_program(CONAN_COMMAND NAMES "conan.exe" PATHS ENV CONAN_PATH ENV PATH REQUIRED NO_CACHE NO_DEFAULT_PATH)
+    else()
+        find_program(CONAN_COMMAND NAMES "conan" PATHS ENV CONAN_PATH ENV PATH REQUIRED NO_CACHE NO_DEFAULT_PATH)
+    endif()
+endif()
+
+if("${CMAKE_UTIL_FILE}" STREQUAL "")
+    if("$ENV{CMAKE_UTIL_FILE}" STREQUAL "")
+        if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/build/dependencies/direct_deploy/exqudens-cmake/cmake/util.cmake")
+            if("${USE_CONAN}")
+                #[[execute_process(
+                    COMMAND "${CONAN_COMMAND}" "user" "$ENV{CONAN_LOGIN_USERNAME}" "-r" "artifactory" "-p"
+                    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                    ENCODING "UTF-8"
+                    COMMAND_ERROR_IS_FATAL "ANY"
+                )]]
+                execute_process(
+                    COMMAND "${CONAN_COMMAND}" "install" "--tool-requires=exqudens-cmake/0.0.1" "--deployer" "direct_deploy" "--deployer-folder" "${CMAKE_SOURCE_DIR}/build/dependencies"
+                    COMMAND_ECHO "STDERR"
+                    ENCODING "UTF-8"
+                    COMMAND_ERROR_IS_FATAL "ANY"
+                )
+                set(CMAKE_UTIL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/build/dependencies/direct_deploy/exqudens-cmake/cmake/util.cmake" CACHE STRING "..." FORCE)
+            else()
+                message(FATAL_ERROR "Unable to resolve CMAKE_UTIL_FILE: '${CMAKE_UTIL_FILE}'")
+            endif()
+        else()
+            set(CMAKE_UTIL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/build/dependencies/direct_deploy/exqudens-cmake/cmake/util.cmake" CACHE STRING "..." FORCE)
+        endif()
+    else()
+        set(CMAKE_UTIL_FILE "$ENV{CMAKE_UTIL_FILE}" CACHE STRING "..." FORCE)
+    endif()
+endif()
+
+include("${CMAKE_UTIL_FILE}")
+
+if("msvc-x64-x64" IN_LIST "PRESET_NAME_ELEMENTS")
+    if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/../msvc-x64-x64-toolchain.cmake")
+        set_msvc_toolchain(TOOLCHAIN_CONTENT
+            PROCESSOR "x86_64"
+            OS "${CMAKE_HOST_SYSTEM_NAME}"
+            VERSION "17"
+            HOST "x64"
+            TARGET "x64"
+            SET_CMAKE_SYSTEM_NAME "0"
+            OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/../msvc-x64-x64-toolchain.cmake"
+        )
+    endif()
+elseif("gcc" IN_LIST PRESET_NAME_ELEMENTS)
+    if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/../gcc-toolchain.cmake")
+        find_file(COMPILER_FILE NAMES "gcc" PATHS ENV GCC_PATH ENV PATH REQUIRED NO_CACHE NO_DEFAULT_PATH)
+        set_gnu_toolchain(TOOLCHAIN_CONTENT
+            PROCESSOR "x86_64"
+            OS "${CMAKE_HOST_SYSTEM_NAME}"
+            PATH "${COMPILER_FILE}"
+            SET_CMAKE_SYSTEM_NAME "0"
+            OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/../gcc-toolchain.cmake"
+        )
+    endif()
+endif()
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/name-version.json" NAME_VERSION_JSON)
+string(JSON NAME GET "${NAME_VERSION_JSON}" "name")
+string(JSON VERSION GET "${NAME_VERSION_JSON}" "version")
 project("${NAME}" VERSION "${VERSION}" LANGUAGES "NONE")
 
-message("project: '${PROJECT_NAME}-${PROJECT_VERSION}'")
+enable_language("C")
+enable_language("CXX")
+#include("GenerateExportHeader")
+#enable_testing()
+#include("GoogleTest")
 
-include("util.cmake")
-include("config.cmake")
+set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/cmake-install" CACHE PATH "..." FORCE)
+set(CMAKE_VERBOSE_MAKEFILE "1" CACHE BOOL "..." FORCE)
+set(CMAKE_EXPORT_COMPILE_COMMANDS "1" CACHE BOOL "..." FORCE)
+
+set(CMAKE_OBJECT_PATH_MAX 1000)
+set(CMAKE_SHARED_LIBRARY_PREFIX "")
+set(CMAKE_SHARED_MODULE_PREFIX "")
+set(CMAKE_STATIC_LIBRARY_PREFIX "")
+set(CMAKE_IMPORT_LIBRARY_PREFIX "")
+set(CMAKE_STAGING_PREFIX "")
+set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
+set(CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH FALSE)
+set(CMAKE_FIND_USE_CMAKE_SYSTEM_PATH FALSE)
+set(CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH TRUE)
+set(CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY FALSE)
+set(CMAKE_FIND_USE_PACKAGE_REGISTRY FALSE)
+set(CMAKE_FIND_USE_PACKAGE_ROOT_PATH FALSE)
+set(CMAKE_FIND_USE_CMAKE_PATH TRUE)
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG FALSE)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS FALSE)
+set(CMAKE_BUILD_RPATH "\$ORIGIN")
+set(CMAKE_INSTALL_RPATH "\$ORIGIN")
+set(CMAKE_SKIP_BUILD_RPATH TRUE)
+set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
+set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED TRUE)
+set(CMAKE_C_EXTENSIONS FALSE)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_EXTENSIONS FALSE)
+
+#[[separate_arguments(CMAKE_CXX_FLAGS NATIVE_COMMAND "${CMAKE_CXX_FLAGS}")
+if(MSVC)
+    if(NOT "/EHa" IN_LIST CMAKE_CXX_FLAGS AND "/EHsc" IN_LIST CMAKE_CXX_FLAGS)
+        list(REMOVE_ITEM CMAKE_CXX_FLAGS "/EHsc")
+        list(APPEND CMAKE_CXX_FLAGS "/EHa")
+    endif()
+endif()
+string(JOIN " " CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})]]
+
+string(TOLOWER "${PROJECT_NAME}" PROJECT_NAME_LOWER)
+set(PROJECT_VERSION_NOTWEAK "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+set(PROJECT_VERSION_NOPATCH "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
 
 cmake_path(CONVERT "$ENV{CMAKE_USER_HOME}" TO_CMAKE_PATH_LIST CMAKE_USER_HOME NORMALIZE)
 if("" STREQUAL "${CMAKE_USER_HOME}")
@@ -35,67 +150,136 @@ endif()
 if(NOT EXISTS "${CMAKE_DOWNLOADS}" OR NOT IS_DIRECTORY "${CMAKE_DOWNLOADS}")
     message(FATAL_ERROR "CMAKE_DOWNLOADS: '${CMAKE_DOWNLOADS}' is not directory.")
 endif()
-if(NOT EXISTS "${CMAKE_DOWNLOADS}/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
-    message("download ...")
-    set(EXPECTED_FILE_DOWNLOAD_MD5 "66bc4c624eb8c6b22d59026e304b500d")
+if(NOT EXISTS "${CMAKE_DOWNLOADS}/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}.zip")
+    message(STATUS "download ...")
     file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tmp")
     file(DOWNLOAD
-        "https://github.com/${PROJECT_NAME}/${PROJECT_NAME}/archive/refs/tags/${PROJECT_VERSION}.zip"
-        "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME}-${PROJECT_VERSION}.zip"
-        )
-    file(MD5 "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME}-${PROJECT_VERSION}.zip" ACTUAL_FILE_DOWNLOAD_MD5)
-    if(NOT "${EXPECTED_FILE_DOWNLOAD_MD5}" STREQUAL "${ACTUAL_FILE_DOWNLOAD_MD5}")
-        message(FATAL_ERROR "EXPECTED_FILE_DOWNLOAD_MD5: '${EXPECTED_FILE_DOWNLOAD_MD5}' not equal to ACTUAL_FILE_DOWNLOAD_MD5: '${ACTUAL_FILE_DOWNLOAD_MD5}'")
+        "https://github.com/glfw/glfw/archive/refs/tags/${PROJECT_VERSION_NOPATCH}.zip"
+        "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}.zip"
+        EXPECTED_MD5 "770b7cc3751f71a4fa0a95386a6ea415"
+        STATUS downloadStatus
+    )
+    if(NOT "${downloadStatus}" STREQUAL "0;\"No error\"")
+        message(FATAL_ERROR "downloadStatus: '${downloadStatus}'")
     endif()
-    file(COPY "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME}-${PROJECT_VERSION}.zip" DESTINATION "${CMAKE_DOWNLOADS}")
-    message("... done")
+    file(COPY "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}.zip" DESTINATION "${CMAKE_DOWNLOADS}")
+    message(STATUS "... done")
 endif()
-if(NOT EXISTS "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
-    message("copy from downloads ...")
-    file(COPY "${CMAKE_DOWNLOADS}/${PROJECT_NAME}-${PROJECT_VERSION}.zip" DESTINATION "${PROJECT_BINARY_DIR}")
-    message("... done")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}.zip")
+    message(STATUS "copy from downloads ...")
+    file(COPY "${CMAKE_DOWNLOADS}/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}.zip" DESTINATION "${PROJECT_SOURCE_DIR}/build")
+    message(STATUS "... done")
 endif()
-if(NOT EXISTS "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}")
-    file(ARCHIVE_EXTRACT INPUT "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}")
+    message(STATUS "extract ...")
+    file(ARCHIVE_EXTRACT INPUT "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}.zip" DESTINATION "${PROJECT_SOURCE_DIR}/build")
+    message(STATUS "... done")
 endif()
-get_filename_component("PROJECT_BINARY_DIR_NAME" "${PROJECT_BINARY_DIR}" NAME)
-get_filename_component("PROJECT_BINARY_DIR_PARENT" "${PROJECT_BINARY_DIR}" DIRECTORY)
-get_filename_component("PROJECT_BINARY_DIR_PARENT_NAME" "${PROJECT_BINARY_DIR_PARENT}" NAME)
+set(BUILD_DIR "${PROJECT_SOURCE_DIR}/build")
+cmake_path(RELATIVE_PATH "BUILD_DIR" BASE_DIRECTORY "${PROJECT_SOURCE_DIR}" OUTPUT_VARIABLE "BUILD_DIR_REL")
 
-add_subdirectory("${PROJECT_BINARY_DIR_PARENT_NAME}/${PROJECT_BINARY_DIR_NAME}/${PROJECT_NAME}-${PROJECT_VERSION}")
+if("${USE_CONAN}")
+    set_conan_architecture(CONAN_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+    set_conan_os(CONAN_OS "${CMAKE_SYSTEM_NAME}")
+    set_conan_compiler(CONAN_COMPILER "${CMAKE_C_COMPILER_ID}")
+    set_conan_compiler_version(CONAN_COMPILER_VERSION "${CMAKE_C_COMPILER_ID}" "${CMAKE_C_COMPILER_VERSION}" MAX_ELEMENTS "1")
+    set_conan_compiler_runtime(CONAN_COMPILER_RUNTIME "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+    set_conan_compiler_runtime_type(CONAN_COMPILER_RUNTIME_TYPE "${CMAKE_MSVC_RUNTIME_LIBRARY}")
 
-add_custom_target("cmake-install"
-    COMMAND "${CMAKE_COMMAND}" --install "${PROJECT_BINARY_DIR}" --prefix "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}"
+    set_python_boolean(CONAN_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
+
+    set_conan_settings(CONAN_SETTINGS
+        "arch=${CONAN_ARCH}"
+        "os=${CONAN_OS}"
+        "compiler=${CONAN_COMPILER}"
+        "compiler.version=${CONAN_COMPILER_VERSION}"
+        "compiler.cstd=${CMAKE_C_STANDARD}"
+        "compiler.cppstd=${CMAKE_CXX_STANDARD}"
+        "compiler.runtime=${CONAN_COMPILER_RUNTIME}"
+        "compiler.runtime_type=${CONAN_COMPILER_RUNTIME_TYPE}"
+        "compiler.libcxx=${CONAN_COMPILER_LIBCXX}"
+        "build_type=${CMAKE_BUILD_TYPE}"
+    )
+    set_conan_options(CONAN_OPTIONS
+        "&:shared=${CONAN_BUILD_SHARED_LIBS}"
+        "*:shared=${CONAN_BUILD_SHARED_LIBS}"
+    )
+endif()
+
+if("msvc-x64-x64" IN_LIST "PRESET_NAME_ELEMENTS")
+    set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -D_WINDOWS")
+    foreach(v IN LISTS "CMAKE_C_STANDARD_INCLUDE_DIRECTORIES")
+        cmake_path(NATIVE_PATH "v" NORMALIZE "vn")
+        set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -I \"${vn}\"")
+    endforeach()
+endif()
+
+if(NOT DEFINED "GLFW_BUILD_EXAMPLES")
+    set(GLFW_BUILD_EXAMPLES "0" CACHE BOOL "...")
+endif()
+if(NOT DEFINED "GLFW_BUILD_TESTS")
+    set(GLFW_BUILD_TESTS "0" CACHE BOOL "...")
+endif()
+if(NOT DEFINED "GLFW_BUILD_DOCS")
+    set(GLFW_BUILD_DOCS "0" CACHE BOOL "...")
+endif()
+if(NOT DEFINED "GLFW_INSTALL")
+    set(GLFW_INSTALL "1" CACHE BOOL "...")
+endif()
+
+message(STATUS "CMAKE_TOOLCHAIN_FILE: '${CMAKE_TOOLCHAIN_FILE}'")
+message(STATUS "PROJECT_NAME: '${PROJECT_NAME}'")
+message(STATUS "PROJECT_VERSION: '${PROJECT_VERSION}'")
+message(STATUS "PROJECT_NAME_LOWER: '${PROJECT_NAME_LOWER}'")
+message(STATUS "PROJECT_VERSION_NOTWEAK: '${PROJECT_VERSION_NOTWEAK}'")
+message(STATUS "PROJECT_VERSION_NOPATCH: '${PROJECT_VERSION_NOPATCH}'")
+message(STATUS "BUILD_DIR: '${BUILD_DIR}'")
+message(STATUS "BUILD_DIR_REL: '${BUILD_DIR_REL}'")
+message(STATUS "CONAN_SETTINGS: '${CONAN_SETTINGS}'")
+message(STATUS "CONAN_OPTIONS: '${CONAN_OPTIONS}'")
+message(STATUS "CMAKE_RC_FLAGS: '${CMAKE_RC_FLAGS}'")
+
+add_subdirectory("${BUILD_DIR_REL}/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOPATCH}")
+
+add_custom_command(
+    OUTPUT "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME_LOWER}/lib/cmake/glfw3/glfw3Config.cmake"
+    COMMAND "${CMAKE_COMMAND}" "--install" "${PROJECT_BINARY_DIR}" "--prefix" "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME_LOWER}"
     DEPENDS "${PROJECT_NAME}"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    USES_TERMINAL
     VERBATIM
 )
 
-set_conan_settings(CONAN_SETTINGS
-    "${CMAKE_SYSTEM_NAME}"
-    "${CMAKE_SYSTEM_PROCESSOR}"
-    "${CMAKE_CXX_COMPILER_ID}"
-    "${CMAKE_CXX_COMPILER_VERSION}"
-    "${CMAKE_MSVC_RUNTIME_LIBRARY}"
-    "${CMAKE_CXX_STANDARD}"
-    "${CMAKE_BUILD_TYPE}"
+add_custom_target("cmake-install"
+    DEPENDS "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME_LOWER}/lib/cmake/glfw3/glfw3Config.cmake"
 )
 
-set_conan_options(CONAN_OPTIONS
-    "shared=${CONAN_BUILD_SHARED_LIBS}"
-)
+if("${USE_CONAN}")
+    add_custom_target("conan-export"
+        COMMAND "${CONAN_COMMAND}" "export-pkg"
+                "--output-folder" "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME_LOWER}"
+                ${CONAN_SETTINGS}
+                ${CONAN_OPTIONS}
+                #"--user" "gitlab-group+gitlab-sub-group+${PROJECT_NAME}"
+                #"--channel" "stable"
+                "${PROJECT_SOURCE_DIR}/conanfile.py"
+        DEPENDS "cmake-install"
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        USES_TERMINAL
+        VERBATIM
+    )
 
-add_custom_target("conan-export" ALL
-    COMMAND "${CONAN_COMMAND}"
-            export-pkg
-            --force
-            "${PROJECT_SOURCE_DIR}/conanfile.py"
-            #"gitlab-group+gitlab-sub-group+${PROJECT_NAME}/stable"
-            --package-folder
-            "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}"
-            ${CONAN_SETTINGS}
-            ${CONAN_OPTIONS}
-    DEPENDS "cmake-install"
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-    VERBATIM
-)
+    add_custom_target("conan-remove"
+        COMMAND "${CONAN_COMMAND}" "remove" "-c" "${PROJECT_NAME_LOWER}/${PROJECT_VERSION}"
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        USES_TERMINAL
+        VERBATIM
+    )
+
+    add_custom_target("conan-list"
+        COMMAND "${CONAN_COMMAND}" "list" "${PROJECT_NAME_LOWER}/${PROJECT_VERSION}:*"
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        USES_TERMINAL
+        VERBATIM
+    )
+endif()
