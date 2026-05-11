@@ -6,7 +6,7 @@
 
 ## how-to-create-github-conan-package
 
-1. `cmake -P cmake/util.cmake -- conan_create_github_package NAME github-glfw VERSION 3.4.0 URL https://github.com/glfw/glfw/archive/refs/tags/3.4.zip EXPECTED_MD5 770b7cc3751f71a4fa0a95386a6ea415`
+1. `cmake -P cmake/util.cmake -- conan_create_github_package URL https://github.com/glfw/glfw/archive/refs/tags/3.4.zip EXPECTED_MD5 770b7cc3751f71a4fa0a95386a6ea415 NAME github-glfw VERSION 3.4.0 USER exqudens CHANNEL development`
 1. *(optional)* check `conan list 'github-glfw/3.4.0:*'`
 1. *(optional)* check ``conan cache path 'github-glfw/3.4.0:${conan list-output-packages[0]}'``
 1. *(optional)* check ``ls -1a ${conan-cache-path-output}``

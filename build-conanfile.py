@@ -6,9 +6,16 @@ from conan import ConanFile
 from conan.tools.files import copy
 
 class ConanConfiguration(ConanFile):
-    requires: list[str] = [
-        'github-glfw/3.4.0'
-    ]
+
+    def requirements(self):
+        try:
+            if self.user and self.channel:
+                self.requires(f"github-glfw/3.4.0@{self.user}/{self.channel}")
+            else:
+                self.requires("github-glfw/3.4.0")
+        except Exception as e:
+            self.output.error(e)
+            raise e
 
     def generate(self):
         try:
